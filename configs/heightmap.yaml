@@ -1,0 +1,32 @@
+data_root: data/paired        # expects textures/ and heightmaps/ subdirs
+output_dir: checkpoints/heightmap_lora
+
+# Base model
+base_model: runwayml/stable-diffusion-v1-5
+
+# LoRA adapter
+lora_rank: 4
+lora_alpha: 16
+lora_dropout: 0.05
+
+# Training
+train_steps: 3000
+batch_size: 1
+lr: 1.0e-4
+resolution: 512
+gradient_accumulation_steps: 4
+mixed_precision: fp16     # no | fp16 | bf16
+save_every: 500
+seed: 42
+
+# Inference
+inference:
+  strength: 0.8
+  guidance_scale: 7.5
+  num_inference_steps: 30
+  output_size: 512
+
+# Synthetic heightmap fallback (data/heightmap_generator.py)
+synthetic:
+  sigma: 2.0
+  invert: false

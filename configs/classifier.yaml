@@ -1,0 +1,11 @@
+dtd_root: data/dtd
+output_dir: checkpoints/classifier
+
+epochs: 30
+lr: 1.0e-4
+batch_size: 32
+image_size: 224
+num_workers: 4
+dropout: 0.4
+weight_decay: 1.0e-4
+label_smoothing: 0.1
