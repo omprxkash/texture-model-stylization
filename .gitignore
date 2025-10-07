@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data & datasets
+data/dtd/
+data/wikiart/
+data/coco/
+*.tar.gz
+*.zip
+
+# Model checkpoints & weights
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+wandb/
+
+# Outputs
+outputs/
+results/
+generated/
+*.png
+*.jpg
+*.jpeg
+*.glb
+*.obj
+!assets/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# HuggingFace cache
+.cache/
