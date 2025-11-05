@@ -1,0 +1,33 @@
+# Shared config for all style transfer methods
+output_dir: outputs/style_transfer
+image_size: 512
+
+# Gatys (VGG-19 optimization-based)
+gatys:
+  num_steps: 500
+  content_weight: 1.0
+  style_weight: 1.0e+6
+  tv_weight: 1.0e-4
+  init: content          # content | style | random
+  style_layer_weights:
+    relu1_1: 0.2
+    relu2_1: 0.2
+    relu3_1: 0.2
+    relu4_1: 0.2
+    relu5_1: 0.2
+
+# Johnson (fast, per-style trained network)
+johnson:
+  epochs: 2
+  batch_size: 8
+  lr: 1.0e-3
+  content_weight: 1.0
+  style_weight: 1.0e+5
+  tv_weight: 1.0e-6
+  content_dir: data/dtd/images
+  log_interval: 100
+
+# AdaIN
+adain:
+  alpha: 1.0             # 0 = content only, 1 = full style
+  image_size: 512
