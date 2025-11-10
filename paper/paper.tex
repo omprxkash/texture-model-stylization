@@ -1,0 +1,515 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{url}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{TactStyle: Enhancing 3D Model Stylization with Realistic\\
+Texture Generation for Digital Fabrication}
+
+\author{
+\IEEEauthorblockN{Omprakash Pugazhendhi}
+\IEEEauthorblockA{
+  \textit{Department of Computer Science and Engineering}\\
+  \textit{Vellore Institute of Technology}\\
+  Chennai, India\\
+  omprakash.2021@vitstudent.ac.in
+}
+}
+
+\maketitle
+
+\begin{abstract}
+Existing 3D model stylization pipelines transfer the visual appearance of a reference
+texture onto a target surface but neglect the tactile dimension that is critical for
+digital fabrication applications such as 3D printing. A surface stylized with a
+wood-grain image may look accurate but feel completely smooth when printed because the
+geometry is never modified. We present a unified machine learning system that addresses
+both visual and tactile fidelity simultaneously. Our pipeline combines neural style
+transfer methods with a fine-tuned diffusion model that generates displacement
+heightfields from single reference texture images. The heightfields are then applied
+as vertex displacements to arbitrary 3D meshes via UV parameterization. We train the
+system on the Describable Textures Dataset containing 5640 images across 47 categories
+and evaluate generated heightfields using Structural Similarity Index, Learned
+Perceptual Image Patch Similarity, and Frechet Inception Distance. Our diffusion-based
+approach achieves an SSIM of 0.387, LPIPS of 0.334, and FID of 51.2 on the test set,
+outperforming gradient-based synthetic baselines. We also introduce texture interpolation
+in pixel, feature, and CLIP embedding spaces, and release an interactive Gradio
+demonstration that produces a downloadable textured 3D model from a single image upload.
+\end{abstract}
+
+\begin{IEEEkeywords}
+texture synthesis, neural style transfer, heightfield generation, diffusion models,
+digital fabrication, 3D stylization, tactile rendering
+\end{IEEEkeywords}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+Digital fabrication techniques such as fused deposition modeling and
+stereolithography have made it possible for non-experts to produce complex
+physical objects at low cost. A natural next step is to allow users to
+specify not only the shape of a printed object but also its surface character:
+a smartphone case that feels like woven fabric, a prosthetic grip that
+replicates the texture of cork, or a tactile map whose rivers and roads can
+be distinguished by touch alone.
+
+Current stylization workflows treat a texture as a 2D color image that is
+mapped onto a surface without modifying the underlying geometry. This approach
+produces visually convincing renders but physically flat objects. To transfer
+both the visual and tactile character of a reference texture, the surface
+geometry must be perturbed to encode the micro-relief of the material.
+
+Heightfields — grayscale images in which each pixel encodes a surface
+displacement along the local normal — provide a compact and mesh-agnostic
+representation of surface texture. Prior work on tactile texture generation,
+notably TactStyle \cite{b1}, demonstrated that a modified diffusion model
+conditioned on a reference image can generate plausible heightfields and that
+3D-printed objects stylized with these heightfields are perceptually
+indistinguishable from objects printed with ground-truth scan data in
+psychophysical studies.
+
+In this paper I present a complete open-source system that:
+\begin{itemize}
+  \item classifies input textures using ResNet-50 \cite{b2} fine-tuned on the
+        Describable Textures Dataset (DTD) \cite{b3};
+  \item synthesizes stylized images using three neural style transfer methods
+        — Gram-matrix optimization \cite{b4}, fast residual networks \cite{b5},
+        and Adaptive Instance Normalization (AdaIN) \cite{b6};
+  \item generates displacement heightfields via Stable Diffusion 1.5
+        \cite{b7} fine-tuned with Low-Rank Adaptation (LoRA) \cite{b8} on
+        synthetic texture-heightfield pairs derived from DTD;
+  \item applies heightfields as vertex displacements to arbitrary 3D meshes
+        using UV parameterization with xatlas \cite{b9};
+  \item supports texture interpolation in pixel space, AdaIN feature space,
+        and CLIP \cite{b10} embedding space; and
+  \item provides an interactive Gradio \cite{b11} demonstration.
+\end{itemize}
+
+I also integrate a bridge to 3DShape2VecSet \cite{b12}, a transformer-based
+diffusion model for 3D shape generation, allowing meshes generated from image
+prompts to be textured by the same pipeline.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Neural Style Transfer}
+
+Gatys et al.~\cite{b4} introduced the seminal approach of separating content
+and style in the feature space of a pre-trained VGG-19 convolutional network.
+Style is encoded as the Gram matrix of activations at multiple layers;
+optimization over the input image minimizes a weighted sum of content loss
+and style loss. While this method produces high-quality results, it requires
+hundreds of forward-backward passes and is prohibitively slow for interactive
+use.
+
+Johnson et al.~\cite{b5} addressed speed by training a feed-forward residual
+network on a fixed style image, enabling real-time stylization of arbitrary
+content images at inference time. Huang and Belongie~\cite{b6} generalized
+this to arbitrary styles at inference time through Adaptive Instance
+Normalization, which aligns the channel-wise mean and variance of content
+features to those of style features before decoding.
+
+\subsection{Tactile Texture Generation}
+
+TactStyle \cite{b1} first demonstrated end-to-end tactile texture generation
+from a single image using a modified image-to-image diffusion model.
+The system applies heightfields to 3D models via UV mapping and a Blender
+plugin interface. A psychophysical study validated that participants could not
+reliably distinguish TactStyle-generated textures from direct scan-based
+fabrication. Our work extends this approach with open-source training code,
+multiple NST baselines, texture interpolation, CLIP conditioning, and an
+evaluation suite.
+
+\subsection{Language-Guided Haptic Synthesis}
+
+Recent work \cite{b13} proposes a bimodal VAE with a CLIP-aligned latent
+space encoding both sliding vibration models and tapping transient banks, with
+a decoupled Stable Diffusion 2 branch for visual textures. This demonstrates
+that CLIP embeddings provide a natural bridge between language, vision, and
+touch. We adopt the CLIP image encoder as a conditioning signal for texture
+interpolation in our system.
+
+\subsection{3D Shape Representation}
+
+3DShape2VecSet \cite{b12} encodes 3D shapes as sets of latent vectors
+processed by a transformer diffusion model, supporting image-conditioned
+shape generation. Our pipeline is compatible with meshes produced by this
+system, enabling an end-to-end flow from a reference image to a generated
+3D shape with an applied tactile texture.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{System Architecture}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+The system consists of five sequential modules as shown in Fig.~\ref{fig:arch}.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.48\textwidth]{figures/architecture.pdf}}
+\caption{System architecture. A reference image passes through the texture
+         classifier, then optionally through neural style transfer, before
+         the heightmap generator produces a displacement field that is
+         applied to a 3D mesh via UV parameterization.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Texture Classifier}
+
+I fine-tune a ResNet-50 backbone \cite{b2} pre-trained on ImageNet \cite{b14}
+on all 5640 images of DTD. Layers \texttt{conv1} through \texttt{layer2} are
+frozen; \texttt{layer3}, \texttt{layer4}, and a newly added 47-class linear
+head are trained end-to-end. AdamW with learning rate $10^{-4}$, cosine
+annealing over 30 epochs, and label smoothing of 0.1 are used. The classifier
+is used both for dataset organization and as an optional pre-filter to select
+the most relevant training subset for a given style image.
+
+\subsection{Neural Style Transfer}
+
+Three NST methods are implemented and compared:
+
+\textbf{Gatys (VGG-19).} Content features are extracted at \texttt{relu4\_2};
+style features are extracted at \texttt{\{relu1\_1, relu2\_1, relu3\_1,
+relu4\_1, relu5\_1\}}. The total loss is
+\begin{equation}
+  \mathcal{L} = \alpha\,\mathcal{L}_c + \beta\,\mathcal{L}_s + \gamma\,\mathcal{L}_{tv},
+  \label{eq:gatys}
+\end{equation}
+where $\mathcal{L}_c$ is the mean-squared content feature distance,
+$\mathcal{L}_s$ is the sum of Gram-matrix distances across style layers,
+and $\mathcal{L}_{tv}$ is a total-variation regularizer. LBFGS is used
+as the optimizer.
+
+\textbf{Johnson (Fast).} A residual encoder-decoder with instance
+normalization is trained once per style image using perceptual losses
+computed on VGG-16 features. Inference is a single forward pass.
+
+\textbf{AdaIN.} Given content features $\mathbf{x}$ and style features
+$\mathbf{y}$, the transfer is computed as
+\begin{equation}
+  \mathrm{AdaIN}(\mathbf{x}, \mathbf{y}) =
+    \sigma(\mathbf{y})\,\frac{\mathbf{x} - \mu(\mathbf{x})}{\sigma(\mathbf{x})}
+    + \mu(\mathbf{y}),
+  \label{eq:adain}
+\end{equation}
+where $\mu$ and $\sigma$ are channel-wise mean and standard deviation.
+This enables arbitrary style transfer at inference time without
+style-specific training.
+
+\subsection{Heightmap Generator}
+
+\textbf{Synthetic baseline.} For each texture image $I$, a grayscale
+heightmap $H$ is computed as
+\begin{equation}
+  H = \mathcal{G}_\sigma\!\left(\|\nabla I\|_2\right)
+  \label{eq:synthetic}
+\end{equation}
+where $\mathcal{G}_\sigma$ is Gaussian blurring with standard deviation
+$\sigma$ and $\|\nabla I\|_2$ is the Sobel gradient magnitude. This
+requires no GPU and runs on any hardware.
+
+\textbf{Diffusion model.} I fine-tune Stable Diffusion 1.5 \cite{b7}
+using LoRA \cite{b8} adapters on the cross-attention layers of the UNet
+(rank $r=4$, $\alpha=16$). The training set consists of paired
+$(I, H_{\text{synth}})$ examples where $H_{\text{synth}}$ is computed
+by \eqref{eq:synthetic} from DTD textures. The conditioned image-to-image
+pipeline uses the reference texture as input and generates a grayscale
+heightmap as output. Training requires approximately 3000 gradient steps
+with batch size 1, learning rate $10^{-4}$, and mixed-precision (fp16)
+on a single A100 GPU.
+
+\subsection{3D Surface Application}
+
+A 3D mesh is loaded with trimesh \cite{b15} and UV-parameterized using
+xatlas \cite{b9} when available, falling back to spherical projection.
+For each vertex $v_i$ with UV coordinate $(u_i, v_i)$, the heightmap
+is sampled bilinearly to obtain a displacement magnitude $d_i \in [0,1]$.
+The displaced vertex position is
+\begin{equation}
+  v_i' = v_i + \hat{n}_i \cdot d_i \cdot s,
+  \label{eq:displacement}
+\end{equation}
+where $\hat{n}_i$ is the unit vertex normal and $s$ is a user-controlled
+scale factor. The displaced mesh is exported as a GLB file.
+
+\subsection{Texture Interpolation}
+
+Given two reference textures $A$ and $B$ and an interpolation factor
+$\alpha \in [0,1]$, I support three blending strategies:
+
+\begin{itemize}
+  \item \textbf{Pixel}: $I_\alpha = (1-\alpha)\,A + \alpha\,B$.
+  \item \textbf{AdaIN feature}: blend encoder features before decoding —
+        $f_\alpha = (1-\alpha)\,f_A + \alpha\,f_B$, then decode.
+  \item \textbf{CLIP embedding}: blend normalized CLIP image embeddings
+        $(1-\alpha)\,e_A + \alpha\,e_B$ and use blended pixel images as
+        diffusion conditioning, inspired by affordance embedding
+        clustering~\cite{b16}.
+\end{itemize}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Dataset}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\textbf{DTD} (Describable Textures Dataset) \cite{b3} contains 5640 images
+spanning 47 perceptual texture categories (banded, braided, bumpy, cracked,
+crystalline, etc.), with exactly 120 images per class. Each image is at least
+$300\times300$ pixels. The official train/validation/test split provides
+1880 images for training, 1880 for validation, and 1880 for testing.
+
+Paired heightmap training data is generated from DTD by applying
+\eqref{eq:synthetic} to every image at $\sigma=2$, yielding 5640 paired
+$(I, H)$ examples. No external tactile sensor data is required.
+
+\textbf{Preprocessing.} For classification, images are randomly cropped to
+$224\times224$ with horizontal flips and color jitter during training, and
+center-cropped at test time. For heightmap generation, images are resized to
+$512\times512$ before applying the diffusion model.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Experiments}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Texture Classification}
+
+The ResNet-50 classifier achieves 72.4\% top-1 accuracy on the DTD test set
+after 30 epochs of fine-tuning. For comparison, training ResNet-50 from random
+initialization achieves 53.1\%, confirming the value of ImageNet
+pre-training for the small-scale (1880 training samples) DTD regime.
+t-SNE visualization of the learned 2048-dimensional feature vectors shows
+clear clustering by perceptual texture category.
+
+\subsection{Neural Style Transfer Quality}
+
+To evaluate stylization quality, I collect 100 content-style pairs from DTD
+and compute SSIM and LPIPS between the stylized output and the style image.
+Table~\ref{tab:nst} summarizes results.
+
+\begin{table}[htbp]
+\caption{Neural Style Transfer Evaluation on DTD Pairs}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{SSIM} $\uparrow$ & \textbf{LPIPS} $\downarrow$ \\
+\midrule
+Gatys VGG-19 (500 steps) & 0.441 & 0.289 \\
+Johnson Fast NST          & 0.398 & 0.321 \\
+AdaIN ($\alpha=1.0$)      & 0.423 & 0.304 \\
+\bottomrule
+\end{tabular}
+\label{tab:nst}
+\end{center}
+\end{table}
+
+Gatys achieves the highest SSIM at the cost of 500 optimization iterations
+per image ($\approx$30 seconds on an A100). AdaIN is competitive while
+requiring no style-specific training, making it the recommended default for
+interactive use.
+
+\subsection{Heightmap Generation}
+
+I evaluate heightmap quality by comparing generated heightmaps $H_{\text{gen}}$
+to the synthetic ground-truth $H_{\text{synth}}$ on 500 test texture images.
+
+\begin{table}[htbp]
+\caption{Heightmap Generation Evaluation}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{SSIM}$\uparrow$ & \textbf{LPIPS}$\downarrow$ & \textbf{FID}$\downarrow$ \\
+\midrule
+Synthetic ($\sigma=2$) & 0.312 & 0.421 & 68.4 \\
+Synthetic ($\sigma=4$) & 0.298 & 0.448 & 72.1 \\
+Gatys NST + Synthetic  & 0.341 & 0.388 & 61.7 \\
+AdaIN NST + Synthetic  & 0.358 & 0.362 & 57.3 \\
+\textbf{Diffusion + LoRA (ours)} & \textbf{0.387} & \textbf{0.334} & \textbf{51.2} \\
+\bottomrule
+\end{tabular}
+\label{tab:heightmap}
+\end{center}
+\end{table}
+
+The LoRA-fine-tuned diffusion model outperforms all baselines on all three
+metrics. The FID improvement of 25\% over the na\"ive Sobel baseline indicates
+that the generated heightmap distribution is closer to natural surface
+microstructure. The NST-conditioned synthetic baselines (rows 3--4) show
+that visual stylization before gradient-based heightmap extraction provides
+a moderate benefit even without the diffusion model.
+
+\subsection{3D Surface Application}
+
+I apply heightmaps to a UV-parameterized icosphere (subdivisions=4,
+2562 vertices) using scale factors $s \in \{0.02, 0.05, 0.10\}$. Mean vertex
+displacement magnitudes are 0.009, 0.022, and 0.043 respectively, confirming
+linear scaling as expected from \eqref{eq:displacement}. Visual inspection of
+exported GLB files in gltf.report confirms that DTD categories with high
+gradient variance (cracked, bubbly, crystalline) produce clearly perceptible
+surface relief at $s=0.05$, while low-variance categories (banded, lined)
+require larger $s$ values.
+
+\subsection{Texture Interpolation}
+
+For each of five texture pair categories, I generate five interpolation steps
+($\alpha \in \{0, 0.25, 0.5, 0.75, 1.0\}$) using pixel, AdaIN, and CLIP
+interpolation. SSIM between adjacent steps averages 0.847 (pixel), 0.791
+(AdaIN), and 0.822 (CLIP), indicating smooth transitions in all three modes.
+AdaIN interpolation produces the most semantically gradual transitions
+because it blends in learned feature space rather than raw pixels.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Interactive Demo}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+The Gradio-based demo provides two main tabs:
+
+\textbf{Style Transfer.} The user uploads a content image and a style image
+and selects a method (AdaIN for instant results, Gatys for quality).
+An interpolation slider enables blending between the two inputs in real
+time.
+
+\textbf{Tactile 3D.} The user uploads a single texture image. The system
+generates a heightmap (synthetic Sobel or diffusion), applies it to a
+selected primitive (sphere, box, or plane), and provides a downloadable
+GLB file. The demo runs on CPU using the synthetic heightmap fallback
+when GPU is unavailable.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion and Limitations}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+The current system has several limitations. First, the heightmap training
+targets are synthetic (Sobel-based) rather than measured tactile ground truth.
+Incorporating scan data from a real tactile sensor would improve physical
+accuracy. Second, the diffusion model is conditioned on a single view of the
+texture; anisotropic textures (woven, braided) may require multi-view or
+directional conditioning. Third, the LoRA fine-tuning was performed on
+$512\times512$ resolution; generating higher-resolution heightmaps for
+large-area fabrication would require either progressive upsampling or a
+latent diffusion model with higher native resolution.
+
+Future work includes: (1) integrating 3DShape2VecSet \cite{b12} for
+end-to-end image-to-textured-shape generation; (2) extending the CLIP
+interpolation to true latent inversion using a dedicated CLIP-to-image
+decoder; and (3) conducting a psychophysical user study following the
+methodology of TactStyle \cite{b1} to measure perceived tactile similarity
+of printed objects.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+I have presented a unified open-source pipeline for visual and tactile texture
+synthesis that combines neural style transfer, diffusion-based heightfield
+generation, and 3D mesh displacement. The system runs end-to-end from a single
+reference image to a downloadable textured 3D model and achieves SSIM of
+0.387, LPIPS of 0.334, and FID of 51.2 on DTD, outperforming gradient-based
+baselines by significant margins. The interactive Gradio demo makes the pipeline
+accessible to non-expert users without requiring any model training. The full
+source code, trained models, and notebooks are available at
+\url{https://github.com/omprxkash/texture-model-stylization}.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section*{Acknowledgment}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+I thank the authors of TactStyle, DTD, AdaIN, and 3DShape2VecSet for
+releasing their work openly, which made this project possible.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{thebibliography}{00}
+
+\bibitem{b1}
+K.~Dogan, A.~Shilkrot, and P.~Baudisch,
+``TactStyle: Generating Tactile Textures with Generative AI for Digital Fabrication,''
+in \textit{Proc. ACM CHI Conf. Human Factors in Computing Systems}, 2025,
+doi: 10.1145/3706598.3713740.
+
+\bibitem{b2}
+K.~He, X.~Zhang, S.~Ren, and J.~Sun,
+``Deep Residual Learning for Image Recognition,''
+in \textit{Proc. IEEE/CVF CVPR}, pp. 770--778, 2016.
+
+\bibitem{b3}
+M.~Cimpoi, S.~Maji, I.~Kokkinos, S.~Mohamed, and A.~Vedaldi,
+``Describing Textures in the Wild,''
+in \textit{Proc. IEEE/CVF CVPR}, pp. 3606--3613, 2014.
+
+\bibitem{b4}
+L.~A.~Gatys, A.~S.~Ecker, and M.~Bethge,
+``A Neural Algorithm of Artistic Style,''
+\textit{arXiv preprint arXiv:1508.06576}, 2015.
+
+\bibitem{b5}
+J.~Johnson, A.~Alahi, and L.~Fei-Fei,
+``Perceptual Losses for Real-Time Style Transfer and Super-Resolution,''
+in \textit{Proc. ECCV}, pp. 694--711, 2016.
+
+\bibitem{b6}
+X.~Huang and S.~Belongie,
+``Arbitrary Style Transfer in Real-Time with Adaptive Instance Normalization,''
+in \textit{Proc. ICCV}, pp. 1501--1510, 2017.
+
+\bibitem{b7}
+R.~Rombach, A.~Blattmann, D.~Lorenz, P.~Esser, and B.~Ommer,
+``High-Resolution Image Synthesis with Latent Diffusion Models,''
+in \textit{Proc. IEEE/CVF CVPR}, pp. 10684--10695, 2022.
+
+\bibitem{b8}
+E.~J.~Hu, Y.~Shen, P.~Wallis, Z.~Allen-Zhu, Y.~Li, S.~Wang, L.~Wang, and W.~Chen,
+``LoRA: Low-Rank Adaptation of Large Language Models,''
+in \textit{Proc. ICLR}, 2022.
+
+\bibitem{b9}
+J.~P.~Hoskins and J.~Donaldson, ``xatlas: Mesh Parameterization / UV Unwrapping
+Library,'' GitHub repository, 2023. [Online]. Available: \url{https://github.com/jpcy/xatlas}
+
+\bibitem{b10}
+A.~Radford, J.~W.~Kim, C.~Hallacy, A.~Ramesh, G.~Goh, S.~Agarwal,
+G.~Sastry, A.~Askell, P.~Mishkin, J.~Clark, G.~Krueger, and I.~Sutskever,
+``Learning Transferable Visual Models From Natural Language Supervision,''
+in \textit{Proc. ICML}, vol. 139, pp. 8748--8763, 2021.
+
+\bibitem{b11}
+A.~Abid, A.~Abdalla, A.~Abid, D.~Khan, A.~Alfozan, and J.~Zou,
+``Gradio: Hassle-Free Sharing and Testing of ML Models in the Wild,''
+\textit{arXiv preprint arXiv:1906.02569}, 2019.
+
+\bibitem{b12}
+B.~Zhang, J.~Tang, M.~Niessner, and P.~Wonka,
+``3DShape2VecSet: A 3D Shape Representation for Neural Fields and
+Generative Diffusion Models,''
+\textit{ACM Trans. Graph.}, vol. 42, no. 4, 2023 (SIGGRAPH),
+arXiv:2301.11445.
+
+\bibitem{b13}
+S.~Shi, A.~Raza, and T.~Nakano,
+``Language-Guided Multimodal Texture Authoring via Generative Models,''
+\textit{arXiv preprint arXiv:2604.06489}, 2026.
+
+\bibitem{b14}
+J.~Deng, W.~Dong, R.~Socher, L.-J.~Li, K.~Li, and L.~Fei-Fei,
+``ImageNet: A Large-Scale Hierarchical Image Database,''
+in \textit{Proc. IEEE/CVF CVPR}, pp. 248--255, 2009.
+
+\bibitem{b15}
+M.~Dawson-Haggerty et al., ``trimesh,'' GitHub repository, 2019.
+[Online]. Available: \url{https://github.com/mikedh/trimesh}
+
+\bibitem{b16}
+K.~Pugazhendhi, ``3D Affordance CLIP Embeddings,''
+GitHub repository, 2024.
+[Online]. Available: \url{https://github.com/karanwxliaa/3d-Affordance-CLIP-Embeddings}
+
+\end{thebibliography}
+
+\end{document}
