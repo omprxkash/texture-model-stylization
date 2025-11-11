@@ -1,8 +1,9 @@
 # Texture Model Stylization
 
-A unified machine learning system for **visual and tactile texture synthesis** — from neural style transfer to diffusion-based heightmap generation and 3D surface application.
+A unified ML system for **visual and tactile texture synthesis** — from neural style transfer to diffusion-based heightmap generation and 3D surface fabrication.
 
-I built this project to solve a real problem in digital fabrication: existing 3D model stylization tools only consider how a surface *looks*, not how it *feels*. A wood-grain texture printed on a flat surface looks correct but feels nothing like real wood. This system addresses both dimensions simultaneously.
+> **Conference Paper:** [Neural Texture Stylization with Tactile Fidelity: A Unified Diffusion and Style Transfer Pipeline for 3D Surface Fabrication](Neural_Texture_Stylization_Omprakash_2025.pdf)
+> *Omprakash Pugazhendhi — VIT Chennai, 2025*
 
 ---
 
@@ -60,7 +61,7 @@ Reference Image (wood/stone/fabric)
 
 ---
 
-## Architecture
+## Project Structure
 
 ```
 texture-model-stylization/
@@ -74,7 +75,7 @@ texture-model-stylization/
 ├── configs/            # YAML training configs
 ├── notebooks/          # 6 Jupyter notebooks (explore → train → evaluate)
 ├── demo/               # Gradio interactive demo
-└── paper/              # IEEE LaTeX paper
+└── Neural_Texture_Stylization_Omprakash_2025.pdf  # Conference paper
 ```
 
 ---
@@ -216,8 +217,6 @@ The diffusion-based approach achieves the highest SSIM (+24% vs synthetic baseli
 ---
 
 ## Related Work
-
-This project builds on and combines:
 
 - **TactStyle** (Dogan et al., CHI 2025, arXiv 2503.02007) — tactile heightfield generation via fine-tuned diffusion
 - **A Neural Algorithm of Artistic Style** (Gatys et al., 2016) — VGG-19 Gram matrix style transfer
