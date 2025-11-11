@@ -9,6 +9,7 @@
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{url}
+\usepackage{calc}
 \usepackage{tikz}
 \usetikzlibrary{positioning, arrows.meta, calc, shapes.geometric, fit, backgrounds}
 \usepackage{multirow}
@@ -290,7 +291,7 @@ tools or notebook cells.
   mainbox/.style={
     rectangle, rounded corners=4pt,
     draw=black!65, fill=#1,
-    text width=\columnwidth-1.6cm,
+    text width=\dimexpr\columnwidth-1.6cm\relax,
     align=center,
     minimum height=0.9cm,
     inner ysep=4pt,
@@ -299,7 +300,7 @@ tools or notebook cells.
   subrow/.style={
     rectangle, rounded corners=2pt,
     draw=black!35, fill=gray!8,
-    text width=\columnwidth-1.8cm,
+    text width=\dimexpr\columnwidth-1.8cm\relax,
     align=center,
     minimum height=0.6cm,
     inner ysep=2pt,
